@@ -1,0 +1,59 @@
+GetOnBase;;;;
+Code;Play Text;Name;BallIsHit;TargetBase
+1B;singled;Single;True;1B
+2B;doubled;Double;True;2B
+3B;tripled;Triple;True;3B
+HR;homered;Home Run;True;HB
+GRD;doubled on ground rule;Ground Rule Double;True;2B
+BB;walked;Base On Balls;;1B
+HBP;hit by pitch;Hit By Pitch;;1B
+IBB;walked intentionally;Intentional Walk;;1B
+CI;reached base on CI;Catcher's Interference;;1B
+K E2;reached first base on dropped 3rd strike;Dropped 3rd Strike;;1B
+FC;reached first base on fielder's choice;Fielder's Choice;True;1B
+E#;reached first base on error;Reached on Error;True;1B
+;;;;
+;;;;
+AdvanceBase;;;;
+Code;Play Text;Name;BallIsHit;
+SB;stole;Stolen Base;;
+WP;advanced on WP to;Wild Pitch;;
+PB;advanced on PB to;Passed Ball;;
+BK;advanced on BK to;Balk;;
+E#;advanced on error to;Error;;
+CS;caught stealing;Caught Stealing;;
+OBS;advanced on obstruction to;Obstruction;;
+;;;;
+;;;;
+GetOut;;;;
+Code;Play Text;Name;BallIsHit;
+K;struck out swinging;Strikeout Swinging;;
+KL;struck out looking;Strikeout Looking;;
+L#;lined out;Line Out;True;
+F#;flied out;Fly Out;True;
+P#;popped out;Pop Out;True;
+G#;grounded out;Ground Out;True;
+IF;flied out on infield fly;Infield Fly;True;
+SF;hit a sacrifice fly;Sacrifice Fly;True;
+SH;laid down a sacrifice bunt;Sacrifice Bunt;True;
+#U;unassisted;Unassisted Out;True;
+##DP;double play;Double Play;True;
+##TP;triple play;Triple Play;True;
+BINT;out on batter interference;Batter Interference;;
+;;;;
+;;;;
+Positions;;;;
+Code;Short;Long;;
+1;P;Pitcher;;
+2;C;Catcher;;
+3;1B;First Base;;
+4;2B;Second Base;;
+5;3B;Third Base;;
+6;SS;Shortstop;;
+7;LF;Left Field;;
+8;CF;Center Field;;
+9;RF;Right Field;;
+;DH;Designated Hitter;;
+;DP;Designated Player;;
+;PH;Pinch Hitter;;
+;PR;Pinch Runner;;
