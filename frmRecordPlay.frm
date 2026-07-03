@@ -135,7 +135,7 @@ Private Sub RecordStrike(ByVal Code As String)
         Set snapshot = m_Logger.TakeSnapshot(m_Game)
         loadLogger snapshot, m_AllEvents(StrikeOutType)
 
-        m_Game.AdvanceBatter ' AdvanceBatter before AddOuts — if this is the 3rd out,
+        m_Game.AdvanceBatter ' AdvanceBatter before AddOuts ï¿½ if this is the 3rd out,
         m_Game.ResetCount   ' ChangeSides flips m_Half inside AddOuts, and AdvanceBatter
         m_Game.AddOuts 1    ' would then increment the wrong team's index.
     End If
@@ -230,7 +230,7 @@ Private Function HandleGetOnBase(ByVal choice As clsEvent, ByVal snapshot As cls
             isBatterTurnOver = False ' ExecuteAndLogForcedWalks handles AdvanceBatter and ResetCount internally
 
         Case Else
-            ' 1B, 2B, FC, E#, GRD, K E2 — and any future GetOnBase event.
+            ' 1B, 2B, FC, E#, GRD, K E2 ï¿½ and any future GetOnBase event.
             ' All follow the same pattern: resolve runners freely, place batter
             ' on the base defined in the glossary TargetBase column.
             Dim getonbaseForm As frmResolveRunners
@@ -281,7 +281,7 @@ Private Function HandleGetOut(ByVal choice As clsEvent, ByVal snapshot As clsPla
     outText = ApplyRunnerDecisions(outDecisions, m_Game.Runner1B, m_Game.Runner2B, m_Game.Runner3B)
 
     loadLogger snapshot, choice, outText
-    m_Game.AdvanceBatter          ' AdvanceBatter before AddOuts — same reason as RecordStrike
+    m_Game.AdvanceBatter          ' AdvanceBatter before AddOuts ï¿½ same reason as RecordStrike
     m_Game.AddOuts (1 + extraOuts)
     
     HandleGetOut = True
@@ -404,7 +404,7 @@ Private Sub loadLogger(ByVal snapshot As clsPlayByPlayEvent, ByVal eventType As 
     Dim recordedStrikes As Long: recordedStrikes = IIf(m_Game.Strikes >= MAX_STRIKES, MAX_STRIKES, m_Game.Strikes)
     Dim pitchText As String
     pitchText = " ( " & recordedBalls & "-" & recordedStrikes & " " & m_Game.PitchSequence & " )"
-
+    
     Dim detailedPlayText As String
     If eventType.Section = "AdvanceBase" Then
         Dim cleanSummary As String: cleanSummary = baserunningSummary
@@ -415,7 +415,7 @@ Private Sub loadLogger(ByVal snapshot As clsPlayByPlayEvent, ByVal eventType As 
         If baserunningSummary <> "" Then detailedPlayText = detailedPlayText & " " & baserunningSummary
     End If
 
-    m_Logger.RecordEvent snapshot, eventType.Code, detailedPlayText
+    m_Logger.RecordEvent snapshot, eventType.Code, detailedPlayText, eventType.IsHit, eventType.IsError
 End Sub
 
 ' ----------------------------------------------------------------
@@ -433,7 +433,7 @@ Private Sub cmdSubstitution_Click()
     confirmed = subForm.ExecuteSubstitution(m_Game)
     
     If Not confirmed Then
-        ' Nothing happened — pop the undo entry we just pushed
+        ' Nothing happened ï¿½ pop the undo entry we just pushed
         ' so a cancelled substitution doesn't leave a dead stack entry.
         m_UndoStack.Remove m_UndoStack.Count
         Exit Sub
@@ -545,19 +545,19 @@ Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)
             Case vbYes
                 m_Logger.ExportToSheet "LiveGameLog"
                 Cancel = False
-                UpdateResumeButton ' Session ended — disable Resume button
+                UpdateResumeButton ' Session ended ï¿½ disable Resume button
                 Unload Me
             Case vbNo
                 Cancel = False
-                UpdateResumeButton ' Session ended — disable Resume button
+                UpdateResumeButton ' Session ended ï¿½ disable Resume button
                 Unload Me
             Case vbCancel
-                ' Form stays open — no button state change needed
+                ' Form stays open ï¿½ no button state change needed
         End Select
     End If
 End Sub
 
-' Fires after Unload Me completes — guaranteed cleanup regardless
+' Fires after Unload Me completes ï¿½ guaranteed cleanup regardless
 ' of which code path triggered the unload.
 Private Sub UserForm_Terminate()
     NotifySessionEnded
@@ -565,5 +565,5 @@ End Sub
 
 Private Sub cmdPause_Click()
     Me.Hide
-    UpdateResumeButton ' Session now paused — enable Resume button
+    UpdateResumeButton ' Session now paused ï¿½ enable Resume button
 End Sub

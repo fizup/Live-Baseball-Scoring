@@ -62,11 +62,15 @@ End Function
 ' Record a snapshot using current details from your main game engine
 Public Sub RecordEvent(ByVal snapshot As clsPlayByPlayEvent, _
                         ByVal eventCode As String, _
-                        ByVal combinedPlayText As String)
+                        ByVal combinedPlayText As String, _
+                        Optional ByVal isHit As Boolean = False, _
+                        Optional ByVal isError As Boolean = False)
     
     ' Log event details
     snapshot.Code = eventCode
     snapshot.PlayText = combinedPlayText
+    snapshot.IsHit = isHit
+    snapshot.IsError = isError
     
     ' Store into history memory
     m_Events.Add snapshot
@@ -122,7 +126,9 @@ Public Sub ExportToSheet(ByVal targetSheetName As String)
     Dim idx As Long
     Dim snapshot As clsPlayByPlayEvent
     Dim nextSnapshot As clsPlayByPlayEvent
-    
+    Dim halfHits As Long
+    Dim halfErrors As Long
+
     For idx = 1 To m_Events.Count
         Set snapshot = m_Events(idx)
         
@@ -140,13 +146,21 @@ Public Sub ExportToSheet(ByVal targetSheetName As String)
             End If
         End If
         
+        If snapshot.IsHit Then halfHits = halfHits + 1
+        If snapshot.IsError Then halfErrors = halfErrors + 1
+        
         If isNewHalf Then
             halfInningStartAway = snapshot.ScoreAway
             halfInningStartHome = snapshot.ScoreHome
+            if idx > 1 then
+                ' Reset hit and error counts for the new half-inning
+                halfHits = 0
+                halfErrors = 0
+            End If
         End If
         
         ' ---- DETECT HALF-INNING END ----
-        ' Insert a summary row after the last event of a half-inning —
+        ' Insert a summary row after the last event of a half-inning ï¿½
         ' either when the next event is a different half, or on the last event overall.
         Dim isEndOfHalf As Boolean
         isEndOfHalf = False
@@ -213,8 +227,9 @@ Public Sub ExportToSheet(ByVal targetSheetName As String)
             End If
             
             Dim summaryText As String
-            summaryText = summaryTeam & " Team — " & snapshot.Half & " " & snapshot.Inning & ":  Runs: " & summaryRuns
-            ' Placeholder columns for future stats — blank for now, easy to extend
+            summaryText = summaryTeam & " Team â€” " & snapshot.Half & " " & snapshot.Inning & _
+              ":  Runs: " & summaryRuns & " | Hits: " & halfHits & " | Errors: " & halfErrors
+            ' Placeholder columns for future stats ï¿½ blank for now, easy to extend
             ' Hits: _ | RBI: _ | Errors: _ | LOB: _
 
             With ws.Range(ws.Cells(rowNum, 1), ws.Cells(rowNum, COL_COUNT))
@@ -235,7 +250,7 @@ Public Sub ExportToSheet(ByVal targetSheetName As String)
     
     ' ---- FINAL FORMATTING ----
     ws.Columns("A:K").AutoFit
-    ws.Columns("E").ColumnWidth = 60 ' Play Text column — don't let AutoFit shrink it too much
+    ws.Columns("E").ColumnWidth = 60 ' Play Text column ï¿½ don't let AutoFit shrink it too much
     
     ' Freeze the header row
     ws.Activate

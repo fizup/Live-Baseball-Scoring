@@ -25,4 +25,6 @@ Public Code As String
 Public PlayText As String
 Public Pitcher As String
 Public Batter As String
+Public IsHit As Boolean
+Public IsError As Boolean
 

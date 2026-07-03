@@ -95,6 +95,8 @@ End Function
 '   C = Event Name
 '   D = Ball is hit
 '   E = Batter's Target Base
+'   F = Is Hit
+'   G = Is Error
 Private Sub LoadEventsFromSection(ByVal ws As Worksheet, _
                                   ByVal sectionName As String, _
                                   ByRef Events As Collection)
@@ -125,6 +127,8 @@ Private Sub LoadEventsFromSection(ByVal ws As Worksheet, _
             e.Name = .Cells(i, 3).Value
             e.BallIsHit = IIf(.Cells(i, 4).Value <> "", True, False)
             e.targetBase = .Cells(i, 5).Value
+            e.IsHit = IIf(.Cells(i, 6).Value <> "", True, False)
+            e.IsError = IIf(.Cells(i, 7).Value <> "", True, False)
             e.Section = sectionName
         End With
 
