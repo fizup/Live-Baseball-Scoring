@@ -70,13 +70,13 @@ End Function
 Public Sub RecordEvent(ByVal snapshot As clsPlayByPlayEvent, _
                         ByVal eventCode As String, _
                         ByVal combinedPlayText As String, _
-                        Optional ByVal isHit As Boolean = False, _
+                        Optional ByVal IsHit As Boolean = False, _
                         Optional ByVal ErrorCount As Long = 0)
     
     ' Log event details
     snapshot.Code = eventCode
     snapshot.PlayText = combinedPlayText
-    snapshot.isHit = isHit
+    snapshot.IsHit = IsHit
     snapshot.ErrorCount = ErrorCount
     
     ' Store into history memory
@@ -169,7 +169,7 @@ Public Sub ExportToSheet(ByVal targetSheetName As String)
         End If
         
         ' ---- ACCUMULATE HALF-INNING TOTALS ----
-        If snapshot.isHit Then halfHits = halfHits + 1
+        If snapshot.IsHit Then halfHits = halfHits + 1
         halfErrors = halfErrors + snapshot.ErrorCount
         
         ' ---- ROW COLOR: alternates per team (Away = blue tones, Home = amber tones) ----

@@ -413,7 +413,7 @@ Private Sub loadLogger(ByVal snapshot As clsPlayByPlayEvent, ByVal eventType As 
         If baserunningSummary <> "" Then detailedPlayText = detailedPlayText & " " & baserunningSummary
     End If
 
-    m_Logger.RecordEvent snapshot, eventType.Code, detailedPlayText, eventType.isHit, ErrorCount
+    m_Logger.RecordEvent snapshot, eventType.Code, detailedPlayText, eventType.IsHit, ErrorCount
 End Sub
 
 ' ----------------------------------------------------------------

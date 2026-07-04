@@ -36,7 +36,8 @@ Public Function GetSeparatedOutcomes(ByRef GameEngine As clsBaseballGame, _
         Set GetSeparatedOutcomes = Nothing
         Exit Function
     End If
-
+    
+    ' Reset block
     Set m_GameRef = GameEngine
     Set m_Outcomes = New Collection
     m_OutsAdded = 0

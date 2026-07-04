@@ -15,6 +15,6 @@ Public Name As String
 Public BallIsHit As Boolean
 Public targetBase As String
 Public Section As String ' Stores "GetOnBase", "GetOut", or "AdvanceBase"
-Public isHit As Boolean
+Public IsHit As Boolean
 Public IsError As Boolean ' Checks if batter reaches on error
 Public ErrorPosition As String  ' optional, for future fielder stats
