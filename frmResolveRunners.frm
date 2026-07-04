@@ -22,6 +22,7 @@ Private m_OutsAdded      As Long
 Private m_ErrorCount     As Long
 Private m_ContinueLoop   As Boolean
 Private m_Cancelled      As Boolean
+Private m_PendingSegmentIsError As Boolean ' True if the segment now being finalized resulted from an error declared on the previous click
 
 ''
 ' Entry point. Loops through one or more "segments" — the initial play,
@@ -99,11 +100,33 @@ End Sub
 ' BUTTON HANDLERS
 ' ----------------------------------------------------------------
 Private Sub cmdSaveRunners_Click()
-    FinalizeSegment IsError:=False, KeepLooping:=False
+    Dim segmentOutcomes As Collection
+    Set segmentOutcomes = BuildSegmentOutcomes()
+    If Not ValidateSegment(segmentOutcomes, WarnIfNothingMoved:=Not m_PendingSegmentIsError) Then Exit Sub
+
+    ApplySegmentToGame segmentOutcomes, m_PendingSegmentIsError
+    m_ContinueLoop = False
+    Me.Hide
 End Sub
 
 Private Sub cmdError_Click()
-    FinalizeSegment IsError:=True, KeepLooping:=True
+    Dim segmentOutcomes As Collection
+    Set segmentOutcomes = BuildSegmentOutcomes()
+    If Not ValidateSegment(segmentOutcomes, WarnIfNothingMoved:=False) Then Exit Sub
+
+    ' This segment (the one just decided) is NOT itself the error —
+    ' it's whatever was flagged from the previous click (False on the first pass).
+    ApplySegmentToGame segmentOutcomes, m_PendingSegmentIsError
+
+    ' One distinct misplay is being declared now — count it once here,
+    ' regardless of how many runners move because of it in the NEXT segment.
+    m_ErrorCount = m_ErrorCount + 1
+
+    ' The segment that comes after this click is the one caused by the error.
+    m_PendingSegmentIsError = True
+
+    m_ContinueLoop = True
+    Me.Hide
 End Sub
 
 Private Sub cmdCancel_Click()
@@ -122,18 +145,6 @@ End Sub
 ' ----------------------------------------------------------------
 ' SEGMENT PROCESSING
 ' ----------------------------------------------------------------
-Private Sub FinalizeSegment(ByVal IsError As Boolean, ByVal KeepLooping As Boolean)
-    Dim segmentOutcomes As Collection
-    Set segmentOutcomes = BuildSegmentOutcomes()
-
-    If Not ValidateSegment(segmentOutcomes, WarnIfNothingMoved:=Not IsError) Then Exit Sub
-
-    ApplySegmentToGame segmentOutcomes, IsError
-
-    If IsError Then m_ErrorCount = m_ErrorCount + 1
-    m_ContinueLoop = KeepLooping
-    Me.Hide
-End Sub
 
 ' Reads the three dropdowns and builds one clsRunnerOutcome per visible
 ' (occupied) base. Does NOT touch m_GameRef — that happens in ApplySegmentToGame.
