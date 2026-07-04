@@ -157,12 +157,17 @@ Private Sub cmdSubmit_Click()
         Exit Sub
     End If
 
-    PushUndo ' cmdSubmit always produces a log entry (default: True)
+    PushUndo ' cmdSubmit always produces a log entry
 
     Dim choice As clsEvent
     Set choice = m_AllEvents(Me.lstDynamicPlays.Value)
-    m_Game.EventToHappen = choice.Code
 
+    ' EventToHappen holds TargetBase, not Code — this is what frmResolveRunners
+    ' uses to pre-occupy the batter's eventual base during collision validation.
+    ' Blank for 3B/HR/forced-advance events, which never touch frmResolveRunners
+    ' for batter placement.
+    m_Game.EventToHappen = choice.TargetBase
+    
     If choice.BallIsHit Then
         m_Game.AppendPitch "X"
         m_Game.CurrentPitcher.Pitchcounter = m_Game.CurrentPitcher.Pitchcounter + 1
@@ -172,17 +177,19 @@ Private Sub cmdSubmit_Click()
     Set snapshot = m_Logger.TakeSnapshot(m_Game)
 
     Dim isBatterTurnOver As Boolean: isBatterTurnOver = True
-    
-    Dim playCompleted As Boolean 'False if frmResolveRunners was cancelled
+    Dim playCompleted As Boolean
+
     Select Case choice.Section
         Case "GetOnBase":   playCompleted = HandleGetOnBase(choice, snapshot, isBatterTurnOver)
         Case "GetOut":      playCompleted = HandleGetOut(choice, snapshot)
+                            isBatterTurnOver = True
         Case "AdvanceBase": playCompleted = HandleAdvanceBase(choice, snapshot)
                             isBatterTurnOver = False
     End Select
-    
-    ' Abort cleanly if the user cancelled frmResolveRunners
+
     If Not playCompleted Then
+        ' User cancelled a runner-resolution form mid-play — roll back
+        ' everything this action changed, including any partial segments.
         m_Game.RestoreMemento m_UndoStack(m_UndoStack.Count)
         m_UndoStack.Remove m_UndoStack.Count
         SetInterfaceStage InPlayMode:=False
@@ -198,6 +205,7 @@ End Sub
 
 ' ----------------------------------------------------------------
 ' PLAY SECTION HANDLERS  (called only from cmdSubmit_Click)
+' Each returns False if the user cancelled a resolution form mid-play.
 ' ----------------------------------------------------------------
 Private Function HandleGetOnBase(ByVal choice As clsEvent, ByVal snapshot As clsPlayByPlayEvent, ByRef isBatterTurnOver As Boolean) As Boolean
     Dim batterName As String: batterName = m_Game.CurrentBatter.Name
@@ -228,72 +236,65 @@ Private Function HandleGetOnBase(ByVal choice As clsEvent, ByVal snapshot As cls
 
         Case "HBP", "IBB", "CI"
             ExecuteAndLogForcedWalks snapshot, choice
-            isBatterTurnOver = False ' ExecuteAndLogForcedWalks handles AdvanceBatter and ResetCount internally
+            isBatterTurnOver = False ' ExecuteAndLogForcedWalks handles AdvanceBatter/ResetCount internally
 
         Case Else
-            ' 1B, 2B, FC, E#, GRD, K E2 � and any future GetOnBase event.
-            ' All follow the same pattern: resolve runners freely, place batter
-            ' on the base defined in the glossary TargetBase column.
-            Dim getonbaseForm As frmResolveRunners
-            Set getonbaseForm = New frmResolveRunners
+            ' 1B, 2B, FC, E#, ROE, GRD, K E2 — and any future GetOnBase event.
+            ' Resolve existing runners FIRST (form pre-occupies TargetBase via
+            ' EventToHappen so no runner can land where the batter is headed),
+            ' THEN place the batter — base is guaranteed free at that point.
+            Dim getonbaseForm As New frmResolveRunners
             Dim baserunningOuts As Long
+            Dim errorCount As Long
             Dim decisions As Collection
-            Set decisions = getonbaseForm.GetSeparatedOutcomes(m_Game, baserunningOuts)
-            
+            Set decisions = getonbaseForm.GetSeparatedOutcomes(m_Game, baserunningOuts, errorCount)
+
             If getonbaseForm.WasCancelled Then
                 HandleGetOnBase = False
                 Exit Function
             End If
-            
+
+            PlaceBatterOnBase batterName, choice.TargetBase
+
             Dim runnerText As String
-            runnerText = ApplyRunnerDecisions(decisions, m_Game.Runner1B, m_Game.Runner2B, m_Game.Runner3B)
+            runnerText = BuildRunnerText(decisions)
 
-            PlaceBatterOnBase batterName, choice.targetBase
-
-            loadLogger snapshot, choice, runnerText
+            loadLogger snapshot, choice, runnerText, errorCount
             m_Game.AdvanceBatter
             If baserunningOuts > 0 Then m_Game.AddOuts baserunningOuts
     End Select
-    
+
     HandleGetOnBase = True
 End Function
 
-Private Sub PlaceBatterOnBase(ByVal batterName As String, ByVal targetBase As String)
-    Select Case targetBase
-        Case "1B": m_Game.Runner1B = batterName
-        Case "2B": m_Game.Runner2B = batterName
-        Case "3B": m_Game.Runner3B = batterName
-    End Select
-End Sub
-
 Private Function HandleGetOut(ByVal choice As clsEvent, ByVal snapshot As clsPlayByPlayEvent) As Boolean
-    Dim getoutForm As frmResolveRunners
-    Set getoutForm = New frmResolveRunners
+    Dim getoutForm As New frmResolveRunners
     Dim extraOuts As Long
+    Dim errorCount As Long
     Dim outDecisions As Collection
-    Set outDecisions = getoutForm.GetSeparatedOutcomes(m_Game, extraOuts)
-    
+    Set outDecisions = getoutForm.GetSeparatedOutcomes(m_Game, extraOuts, errorCount)
+
     If getoutForm.WasCancelled Then
         HandleGetOut = False
         Exit Function
     End If
 
     Dim outText As String
-    outText = ApplyRunnerDecisions(outDecisions, m_Game.Runner1B, m_Game.Runner2B, m_Game.Runner3B)
+    outText = BuildRunnerText(outDecisions)
 
-    loadLogger snapshot, choice, outText
-    m_Game.AdvanceBatter          ' AdvanceBatter before AddOuts � same reason as RecordStrike
+    loadLogger snapshot, choice, outText, errorCount
+    m_Game.AdvanceBatter          ' AdvanceBatter before AddOuts — same reason as RecordStrike
     m_Game.AddOuts (1 + extraOuts)
-    
+
     HandleGetOut = True
 End Function
 
 Private Function HandleAdvanceBase(ByVal choice As clsEvent, ByVal snapshot As clsPlayByPlayEvent) As Boolean
-    Dim advanceForm As frmResolveRunners
-    Set advanceForm = New frmResolveRunners
+    Dim advanceForm As New frmResolveRunners
     Dim baseOuts As Long
+    Dim errorCount As Long
     Dim advDecisions As Collection
-    Set advDecisions = advanceForm.GetSeparatedOutcomes(m_Game, baseOuts)
+    Set advDecisions = advanceForm.GetSeparatedOutcomes(m_Game, baseOuts, errorCount)
 
     If advanceForm.WasCancelled Then
         HandleAdvanceBase = False
@@ -301,67 +302,62 @@ Private Function HandleAdvanceBase(ByVal choice As clsEvent, ByVal snapshot As c
     End If
 
     Dim advText As String
-    advText = ApplyRunnerDecisions(advDecisions, m_Game.Runner1B, m_Game.Runner2B, m_Game.Runner3B, _
-                                   choice.PlayText, choice.Name = "Caught Stealing")
+    advText = BuildRunnerText(advDecisions, choice.PlayText, choice.Name = "Caught Stealing")
 
-    loadLogger snapshot, choice, advText
+    loadLogger snapshot, choice, advText, errorCount
     If baseOuts > 0 Then m_Game.AddOuts baseOuts
-    
+
     HandleAdvanceBase = True
 End Function
 
 ' ----------------------------------------------------------------
 ' PLAY HELPERS
 ' ----------------------------------------------------------------
-Private Function ApplyRunnerDecisions(ByVal decisions As Collection, _
-                                      ByVal prev1B As String, _
-                                      ByVal prev2B As String, _
-                                      ByVal prev3B As String, _
-                                      Optional ByVal actionVerb As String = "advanced to", _
-                                      Optional ByVal isCaughtStealing As Boolean = False) As String
-    m_Game.Runner1B = ""
-    m_Game.Runner2B = ""
-    m_Game.Runner3B = ""
 
+' Places the batter on the given base. Called AFTER frmResolveRunners
+' has resolved existing runners, so the target base is guaranteed free.
+Private Sub PlaceBatterOnBase(ByVal batterName As String, ByVal targetBase As String)
+    Select Case targetBase
+        Case "1B": m_Game.Runner1B = batterName
+        Case "2B": m_Game.Runner2B = batterName
+        Case "3B": m_Game.Runner3B = batterName
+        ' Blank targetBase (3B/HR/forced-advance paths) never reaches here
+    End Select
+End Sub
+
+' Builds the human-readable play-by-play text from a resolved outcomes
+' collection. Pure text formatting — does NOT touch game state, since
+' frmResolveRunners already applied every outcome to m_Game internally.
+Private Function BuildRunnerText(ByVal decisions As Collection, _
+                                 Optional ByVal actionVerb As String = "advanced to", _
+                                 Optional ByVal isCaughtStealing As Boolean = False) As String
     Dim summaryText As String: summaryText = ""
     If decisions Is Nothing Then
-        ApplyRunnerDecisions = summaryText
+        BuildRunnerText = summaryText
         Exit Function
     End If
 
     Dim outcome As clsRunnerOutcome
     For Each outcome In decisions
-        Dim runnerName As String
-        Select Case outcome.BaseSource
-            Case "1B": runnerName = prev1B
-            Case "2B": runnerName = prev2B
-            Case "3B": runnerName = prev3B
-        End Select
-
         Select Case outcome.NewDestination
             Case DEST_HOLDS
-                Select Case outcome.BaseSource
-                    Case "1B": m_Game.Runner1B = prev1B
-                    Case "2B": m_Game.Runner2B = prev2B
-                    Case "3B": m_Game.Runner3B = prev3B
-                End Select
+                ' Not noteworthy — no text fragment
             Case DEST_SECOND
-                m_Game.Runner2B = runnerName
-                summaryText = summaryText & "; " & runnerName & " " & actionVerb & " second"
+                summaryText = summaryText & "; " & outcome.PlayerName & " " & _
+                              IIf(outcome.AdvancedOnError, "advanced to second on error", actionVerb & " second")
             Case DEST_THIRD
-                m_Game.Runner3B = runnerName
-                summaryText = summaryText & "; " & runnerName & " " & actionVerb & " third"
+                summaryText = summaryText & "; " & outcome.PlayerName & " " & _
+                              IIf(outcome.AdvancedOnError, "advanced to third on error", actionVerb & " third")
             Case DEST_SCORES
-                m_Game.ScoreRuns 1
-                summaryText = summaryText & "; " & runnerName & _
-                              IIf(actionVerb = "stole", " stole home and scored", " scored")
+                summaryText = summaryText & "; " & outcome.PlayerName & _
+                              IIf(outcome.AdvancedOnError, " scored on error", " scored")
             Case DEST_OUT
-                summaryText = summaryText & "; " & runnerName & _
+                summaryText = summaryText & "; " & outcome.PlayerName & _
                               IIf(isCaughtStealing, " caught stealing", " out on play")
         End Select
     Next outcome
 
-    ApplyRunnerDecisions = summaryText
+    BuildRunnerText = summaryText
 End Function
 
 Private Sub ScoreAllRunners(ByVal r3B As String, ByVal r2B As String, ByVal r1B As String, _
@@ -400,12 +396,13 @@ Private Sub ExecuteAndLogForcedWalks(ByVal gameState As clsPlayByPlayEvent, ByVa
 End Sub
 
 Private Sub loadLogger(ByVal snapshot As clsPlayByPlayEvent, ByVal eventType As clsEvent, _
-                        Optional ByVal baserunningSummary As String = "")
-    Dim recordedBalls   As Long: recordedBalls = IIf(m_Game.Balls >= MAX_BALLS, MAX_BALLS, m_Game.Balls)
+                       Optional ByVal baserunningSummary As String = "", _
+                       Optional ByVal errorCount As Long = 0)
+    Dim recordedBalls   As Long: recordedBalls   = IIf(m_Game.Balls >= MAX_BALLS, MAX_BALLS, m_Game.Balls)
     Dim recordedStrikes As Long: recordedStrikes = IIf(m_Game.Strikes >= MAX_STRIKES, MAX_STRIKES, m_Game.Strikes)
     Dim pitchText As String
     pitchText = " ( " & recordedBalls & "-" & recordedStrikes & " " & m_Game.PitchSequence & " )"
-    
+
     Dim detailedPlayText As String
     If eventType.Section = "AdvanceBase" Then
         Dim cleanSummary As String: cleanSummary = baserunningSummary
@@ -416,7 +413,7 @@ Private Sub loadLogger(ByVal snapshot As clsPlayByPlayEvent, ByVal eventType As 
         If baserunningSummary <> "" Then detailedPlayText = detailedPlayText & " " & baserunningSummary
     End If
 
-    m_Logger.RecordEvent snapshot, eventType.Code, detailedPlayText, eventType.IsHit, eventType.IsError
+    m_Logger.RecordEvent snapshot, eventType.Code, detailedPlayText, eventType.IsHit, errorCount
 End Sub
 
 ' ----------------------------------------------------------------
