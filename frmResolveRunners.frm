@@ -48,8 +48,8 @@ Public Function GetSeparatedOutcomes(ByRef GameEngine As clsBaseballGame, _
     Do
         RefreshForm
         Me.Show vbModal
-        ' Execution resumes here after Me.Hide, called by cmdConfirm,
-        ' cmdErrorContinue, cmdCancel, or UserForm_QueryClose.
+        ' Execution resumes here after Me.Hide, called by cmdSaveRunners,
+        ' cmdError, cmdCancel, or UserForm_QueryClose.
 
         If m_Cancelled Then
             Set GetSeparatedOutcomes = Nothing
