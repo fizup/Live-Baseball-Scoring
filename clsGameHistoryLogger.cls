@@ -63,14 +63,14 @@ End Function
 Public Sub RecordEvent(ByVal snapshot As clsPlayByPlayEvent, _
                         ByVal eventCode As String, _
                         ByVal combinedPlayText As String, _
-                        Optional ByVal isHit As Boolean = False, _
-                        Optional ByVal isError As Boolean = False)
+                        Optional ByVal IsHit As Boolean = False, _
+                        Optional ByVal IsError As Boolean = False)
     
     ' Log event details
     snapshot.Code = eventCode
     snapshot.PlayText = combinedPlayText
-    snapshot.IsHit = isHit
-    snapshot.IsError = isError
+    snapshot.IsHit = IsHit
+    snapshot.IsError = IsError
     
     ' Store into history memory
     m_Events.Add snapshot
@@ -152,8 +152,7 @@ Public Sub ExportToSheet(ByVal targetSheetName As String)
         If isNewHalf Then
             halfInningStartAway = snapshot.ScoreAway
             halfInningStartHome = snapshot.ScoreHome
-            if idx > 1 then
-                ' Reset hit and error counts for the new half-inning
+            If idx > 1 Then
                 halfHits = 0
                 halfErrors = 0
             End If
