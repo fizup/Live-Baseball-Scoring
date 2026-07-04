@@ -13,7 +13,6 @@ Attribute VB_GlobalNameSpace = False
 Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
-
 Option Explicit
 
 Private m_GameRef        As clsBaseballGame
@@ -21,12 +20,12 @@ Private m_Outcomes       As Collection   ' cumulative across all segments
 Private m_OutsAdded      As Long
 Private m_ErrorCount     As Long
 Private m_ContinueLoop   As Boolean
-Private m_Cancelled      As Boolean
 Private m_PendingSegmentIsError As Boolean ' True if the segment now being finalized resulted from an error declared on the previous click
+Private m_Cancelled      As Boolean
 
 ''
-' Entry point. Loops through one or more "segments" â€” the initial play,
-' then optionally one or more error segments â€” until the user confirms
+' Entry point. Loops through one or more "segments" — the initial play,
+' then optionally one or more error segments — until the user confirms
 ' the final result or cancels. Each segment's decisions are applied to
 ' GameEngine immediately so the next segment sees the updated base state.
 ''
@@ -38,11 +37,12 @@ Public Function GetSeparatedOutcomes(ByRef GameEngine As clsBaseballGame, _
         Exit Function
     End If
 
-    Set m_GameRef  = GameEngine
+    Set m_GameRef = GameEngine
     Set m_Outcomes = New Collection
-    m_OutsAdded    = 0
-    m_ErrorCount   = 0
-    m_Cancelled    = False
+    m_OutsAdded = 0
+    m_ErrorCount = 0
+    m_PendingSegmentIsError = False
+    m_Cancelled = False
 
     Do
         RefreshForm
@@ -57,10 +57,11 @@ Public Function GetSeparatedOutcomes(ByRef GameEngine As clsBaseballGame, _
     Loop While m_ContinueLoop
 
     AdditionalOuts = m_OutsAdded
-    ErrorCount     = m_ErrorCount
+    ErrorCount = m_ErrorCount
     Set GetSeparatedOutcomes = m_Outcomes
 End Function
 
+' Read-only accessor for the caller to check
 Public Property Get WasCancelled() As Boolean
     WasCancelled = m_Cancelled
 End Property
@@ -72,7 +73,7 @@ Private Sub RefreshForm()
     SetupDropdown Me.cboRunner2B, Me.lblRunner2B, m_GameRef.Runner2B, "2B"
     SetupDropdown Me.cboRunner3B, Me.lblRunner3B, m_GameRef.Runner3B, "3B"
 
-    Me.Caption = IIf(m_ErrorCount > 0, "Resolve Runners â€” Error Segment " & (m_ErrorCount + 1), "Resolve Runners")
+    Me.Caption = IIf(m_ErrorCount > 0, "Resolve Runners — Error Segment " & (m_ErrorCount + 1), "Resolve Runners")
 End Sub
 
 Private Sub SetupDropdown(ByRef cbo As Control, ByRef lbl As Control, ByVal runnerName As String, ByVal baseCode As String)
@@ -114,11 +115,11 @@ Private Sub cmdError_Click()
     Set segmentOutcomes = BuildSegmentOutcomes()
     If Not ValidateSegment(segmentOutcomes, WarnIfNothingMoved:=False) Then Exit Sub
 
-    ' This segment (the one just decided) is NOT itself the error â€”
+    ' This segment (the one just decided) is NOT itself the error —
     ' it's whatever was flagged from the previous click (False on the first pass).
     ApplySegmentToGame segmentOutcomes, m_PendingSegmentIsError
 
-    ' One distinct misplay is being declared now â€” count it once here,
+    ' One distinct misplay is being declared now — count it once here,
     ' regardless of how many runners move because of it in the NEXT segment.
     m_ErrorCount = m_ErrorCount + 1
 
@@ -145,9 +146,21 @@ End Sub
 ' ----------------------------------------------------------------
 ' SEGMENT PROCESSING
 ' ----------------------------------------------------------------
+Private Sub FinalizeSegment(ByVal IsError As Boolean, ByVal KeepLooping As Boolean)
+    Dim segmentOutcomes As Collection
+    Set segmentOutcomes = BuildSegmentOutcomes()
+
+    If Not ValidateSegment(segmentOutcomes, WarnIfNothingMoved:=Not IsError) Then Exit Sub
+
+    ApplySegmentToGame segmentOutcomes, IsError
+
+    If IsError Then m_ErrorCount = m_ErrorCount + 1
+    m_ContinueLoop = KeepLooping
+    Me.Hide
+End Sub
 
 ' Reads the three dropdowns and builds one clsRunnerOutcome per visible
-' (occupied) base. Does NOT touch m_GameRef â€” that happens in ApplySegmentToGame.
+' (occupied) base. Does NOT touch m_GameRef — that happens in ApplySegmentToGame.
 Private Function BuildSegmentOutcomes() As Collection
     Dim result As New Collection
     AddOutcomeIfVisible result, Me.cboRunner1B, m_GameRef.Runner1B, "1B"
@@ -179,7 +192,7 @@ End Sub
 ' Applies a validated segment's outcomes to the live game state.
 ' Processed in DESCENDING base order (3B, 2B, 1B) so a runner moving
 ' into a base a moment before another runner vacates it is never
-' overwritten â€” e.g. 1Bâ†’2B and 2Bâ†’3B in the same segment.
+' overwritten — e.g. 1B?2B and 2B?3B in the same segment.
 Private Sub ApplySegmentToGame(ByVal segmentOutcomes As Collection, ByVal IsError As Boolean)
     Dim source As Variant
     For Each source In Array("3B", "2B", "1B")
@@ -215,7 +228,7 @@ Private Sub ApplyOutcomeToField(ByVal outcome As clsRunnerOutcome)
 End Sub
 
 ' ----------------------------------------------------------------
-' VALIDATION â€” scoped to the CURRENT segment only
+' VALIDATION — scoped to the CURRENT segment only
 ' ----------------------------------------------------------------
 Private Function ValidateSegment(ByVal segmentOutcomes As Collection, ByVal WarnIfNothingMoved As Boolean) As Boolean
     Dim baseOccupied(1 To 3) As Boolean
@@ -287,3 +300,4 @@ Private Function ValidateSegment(ByVal segmentOutcomes As Collection, ByVal Warn
 
     ValidateSegment = True
 End Function
+

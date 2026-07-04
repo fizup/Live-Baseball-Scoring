@@ -127,7 +127,7 @@ Private Sub LoadEventsFromSection(ByVal ws As Worksheet, _
             e.Name = .Cells(i, 3).Value
             e.BallIsHit = IIf(.Cells(i, 4).Value <> "", True, False)
             e.targetBase = .Cells(i, 5).Value
-            e.IsHit = IIf(.Cells(i, 6).Value <> "", True, False)
+            e.isHit = IIf(.Cells(i, 6).Value <> "", True, False)
             e.IsError = IIf(.Cells(i, 7).Value <> "", True, False)
             e.Section = sectionName
         End With
