@@ -357,16 +357,49 @@ Private Function BuildRunnerText(ByVal decisions As Collection, _
         End Select
     Next outcome
 
-    BuildRunnerText = summaryText
+    ' m_Outcomes is built in descending base order (3B, 2B, 1B) per segment
+    ' for correct field mutation — but that reads backwards compared to
+    ' ExecuteAndLogForcedWalks (ascending: 1B->2B->2B->3B->3B scores).
+    ' Split on "; " and reverse the fragments so the final text always
+    ' reads lowest-base-first, consistent across both code paths.
+    BuildRunnerText = ReverseSemicolonFragments(summaryText)
+End Function
+
+' Splits a "; fragment; fragment; fragment" string and returns the
+' fragments in reverse order, preserving the leading "; " on each.
+Private Function ReverseSemicolonFragments(ByVal rawText As String) As String
+    If rawText = "" Then
+        ReverseSemicolonFragments = ""
+        Exit Function
+    End If
+
+    Dim cleaned As String: cleaned = rawText
+    If Left(cleaned, 2) = "; " Then cleaned = Mid(cleaned, 3)
+
+    Dim parts() As String
+    parts = Split(cleaned, "; ")
+
+    Dim reversed As String: reversed = ""
+    Dim i As Long
+    For i = UBound(parts) To LBound(parts) Step -1
+        reversed = reversed & "; " & parts(i)
+    Next i
+
+    ReverseSemicolonFragments = reversed
 End Function
 
 Private Sub ScoreAllRunners(ByVal r3B As String, ByVal r2B As String, ByVal r1B As String, _
                              ByRef runsScored As Long, ByRef summaryText As String)
     runsScored = 0
     summaryText = ""
-    If r3B <> "" Then: runsScored = runsScored + 1: summaryText = summaryText & "; " & r3B & " scored"
-    If r2B <> "" Then: runsScored = runsScored + 1: summaryText = summaryText & "; " & r2B & " scored"
+    
+    ' Build text in ascending base order (1B, 2B, 3B) for consistency with
+    ' ExecuteAndLogForcedWalks and the reversed BuildRunnerText output.
+    ' Parameter names still reflect the 3B/2B/1B call-site order; only the
+    ' order of these three checks changed.
     If r1B <> "" Then: runsScored = runsScored + 1: summaryText = summaryText & "; " & r1B & " scored"
+    If r2B <> "" Then: runsScored = runsScored + 1: summaryText = summaryText & "; " & r2B & " scored"
+    If r3B <> "" Then: runsScored = runsScored + 1: summaryText = summaryText & "; " & r3B & " scored"
 End Sub
 
 Private Sub ExecuteAndLogForcedWalks(ByVal gameState As clsPlayByPlayEvent, ByVal eventType As clsEvent)
