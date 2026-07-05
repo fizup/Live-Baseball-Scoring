@@ -8,31 +8,38 @@ Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
-
+ 
 Private m_Events As Collection
-
+ 
 Private Sub Class_Initialize()
     Set m_Events = New Collection
 End Sub
-
+ 
 ' Read-only access to the event collection
 Public Property Get Events() As Collection
     Set Events = m_Events
 End Property
-
+ 
 ' Property to see total records logged
 Public Property Get Count() As Long
     Count = m_Events.Count
 End Property
-
+ 
 ' Clear history memory
 Public Sub ClearLog()
     Set m_Events = New Collection
 End Sub
-
+ 
+' Removes the most recently logged event — used by cmdUndo_Click
+' when the undone action produced a log entry (memento.HasLogEntry).
+Public Sub RemoveLastEvent()
+    If m_Events.Count > 0 Then m_Events.Remove m_Events.Count
+End Sub
+ 
 Public Function TakeSnapshot(ByVal GameEngine As clsBaseballGame) As clsPlayByPlayEvent
     
-    Dim snapshot As New clsPlayByPlayEvent
+    Dim snapshot As clsPlayByPlayEvent
+    Set snapshot = New clsPlayByPlayEvent
     
     ' Capture structural contextual states BEFORE engine progression executes
     ' Log data from the decoupled engine state
@@ -58,30 +65,27 @@ Public Function TakeSnapshot(ByVal GameEngine As clsBaseballGame) As clsPlayByPl
     Set TakeSnapshot = snapshot
     
 End Function
-
+ 
 ' Record a snapshot using current details from your main game engine
 Public Sub RecordEvent(ByVal snapshot As clsPlayByPlayEvent, _
                         ByVal eventCode As String, _
                         ByVal combinedPlayText As String, _
                         Optional ByVal IsHit As Boolean = False, _
-                        Optional ByVal IsError As Boolean = False)
+                        Optional ByVal ErrorCount As Long = 0)
     
     ' Log event details
     snapshot.Code = eventCode
     snapshot.PlayText = combinedPlayText
     snapshot.IsHit = IsHit
-    snapshot.IsError = IsError
+    snapshot.ErrorCount = ErrorCount
     
     ' Store into history memory
     m_Events.Add snapshot
 End Sub
-
-' Remove the last event
-Public Sub RemoveLastEvent()
-    If m_Events.Count > 0 Then m_Events.Remove m_Events.Count
-End Sub
-
-' Dump all play-by-play data out to an Excel worksheet
+ 
+' Dump all play-by-play data out to an Excel worksheet with readability
+' formatting: alternating row colors per team, bold on scoring plays,
+' italic on substitutions, and a summary row after each half-inning.
 Public Sub ExportToSheet(ByVal targetSheetName As String)
     Dim ws As Worksheet
     On Error Resume Next
@@ -95,12 +99,12 @@ Public Sub ExportToSheet(ByVal targetSheetName As String)
     
     ws.Cells.Clear
     
-  ' ---- CONSTANTS ----
+    ' ---- CONSTANTS ----
     Const COL_COUNT     As Long = 11
-    Dim COLOR_AWAY_ODD  As Long: COLOR_AWAY_ODD = RGB(255, 255, 255)  ' White
-    Dim COLOR_AWAY_EVEN As Long: COLOR_AWAY_EVEN = RGB(235, 241, 250) ' Soft blue-grey
-    Dim COLOR_HOME_ODD  As Long: COLOR_HOME_ODD = RGB(255, 252, 240)  ' Warm white
-    Dim COLOR_HOME_EVEN As Long: COLOR_HOME_EVEN = RGB(255, 235, 205) ' Soft amber
+    Dim COLOR_AWAY_ODD  As Long: COLOR_AWAY_ODD = RGB(255, 255, 255)    ' White
+    Dim COLOR_AWAY_EVEN As Long: COLOR_AWAY_EVEN = RGB(235, 241, 250)   ' Soft blue-grey
+    Dim COLOR_HOME_ODD  As Long: COLOR_HOME_ODD = RGB(255, 252, 240)    ' Warm white
+    Dim COLOR_HOME_EVEN As Long: COLOR_HOME_EVEN = RGB(255, 235, 205)   ' Soft amber
     Dim COLOR_SUMMARY_AWAY As Long: COLOR_SUMMARY_AWAY = RGB(180, 198, 231) ' Deeper blue
     Dim COLOR_SUMMARY_HOME As Long: COLOR_SUMMARY_HOME = RGB(255, 195, 145) ' Deeper amber
     Dim COLOR_HEADER    As Long: COLOR_HEADER = RGB(68, 114, 196)
@@ -118,61 +122,57 @@ Public Sub ExportToSheet(ByVal targetSheetName As String)
     
     ' ---- DATA ROWS ----
     Dim rowNum As Long: rowNum = 2
-    Dim colorToggle As Boolean: colorToggle = False ' toggles each data row for alternating color
+    Dim colorToggle As Boolean: colorToggle = False
     
     Dim halfInningStartAway As Long: halfInningStartAway = 0
     Dim halfInningStartHome As Long: halfInningStartHome = 0
+    Dim halfHits As Long: halfHits = 0
+    Dim halfErrors As Long: halfErrors = 0
     
     Dim idx As Long
     Dim snapshot As clsPlayByPlayEvent
-    Dim nextSnapshot As clsPlayByPlayEvent
-    Dim halfHits As Long
-    Dim halfErrors As Long
-
+    Dim otherSnapshot As clsPlayByPlayEvent
+    
     For idx = 1 To m_Events.Count
         Set snapshot = m_Events(idx)
         
-        ' ---- DETECT HALF-INNING BOUNDARY ----
-        ' A new half-inning starts when Inning or Half changes from the previous event,
-        ' or on the very first event. Reset the starting score for the summary.
+        ' ---- DETECT HALF-INNING START ----
         Dim isNewHalf As Boolean
         isNewHalf = False
         If idx = 1 Then
             isNewHalf = True
         Else
-            Set nextSnapshot = m_Events(idx - 1)
-            If snapshot.Inning <> nextSnapshot.Inning Or snapshot.Half <> nextSnapshot.Half Then
+            Set otherSnapshot = m_Events(idx - 1)
+            If snapshot.Inning <> otherSnapshot.Inning Or snapshot.Half <> otherSnapshot.Half Then
                 isNewHalf = True
             End If
         End If
         
-        If snapshot.IsHit Then halfHits = halfHits + 1
-        If snapshot.IsError Then halfErrors = halfErrors + 1
-        
         If isNewHalf Then
             halfInningStartAway = snapshot.ScoreAway
             halfInningStartHome = snapshot.ScoreHome
-            If idx > 1 Then
-                halfHits = 0
-                halfErrors = 0
-            End If
+            halfHits = 0
+            halfErrors = 0
+            colorToggle = False ' every half-inning starts on the ODD color
         End If
         
         ' ---- DETECT HALF-INNING END ----
-        ' Insert a summary row after the last event of a half-inning ï¿½
-        ' either when the next event is a different half, or on the last event overall.
         Dim isEndOfHalf As Boolean
         isEndOfHalf = False
         If idx = m_Events.Count Then
             isEndOfHalf = True
         Else
-            Set nextSnapshot = m_Events(idx + 1)
-            If snapshot.Inning <> nextSnapshot.Inning Or snapshot.Half <> nextSnapshot.Half Then
+            Set otherSnapshot = m_Events(idx + 1)
+            If snapshot.Inning <> otherSnapshot.Inning Or snapshot.Half <> otherSnapshot.Half Then
                 isEndOfHalf = True
             End If
         End If
         
-        ' ---- WRITE DATA ROW ----
+        ' ---- ACCUMULATE HALF-INNING TOTALS ----
+        If snapshot.IsHit Then halfHits = halfHits + 1
+        halfErrors = halfErrors + snapshot.ErrorCount
+        
+        ' ---- ROW COLOR: alternates per team (Away = blue tones, Home = amber tones) ----
         Dim rowColor As Long
         If snapshot.Half = "Top" Then
             rowColor = IIf(colorToggle, COLOR_AWAY_EVEN, COLOR_AWAY_ODD)
@@ -181,9 +181,7 @@ Public Sub ExportToSheet(ByVal targetSheetName As String)
         End If
         colorToggle = Not colorToggle
         
-        With ws.Rows(rowNum)
-            .Interior.Color = rowColor
-        End With
+        ws.Rows(rowNum).Interior.Color = rowColor
         
         ws.Cells(rowNum, 1).Value = idx
         ws.Cells(rowNum, 2).Value = snapshot.Inning
@@ -197,8 +195,10 @@ Public Sub ExportToSheet(ByVal targetSheetName As String)
         ws.Cells(rowNum, 10).Value = snapshot.ScoreAway
         ws.Cells(rowNum, 11).Value = snapshot.ScoreHome
         
-        
         ' ---- BOLD: run scored on this play ----
+        ' Detected from the play text itself rather than score deltas —
+        ' avoids off-by-one issues since snapshot scores are captured
+        ' BEFORE the play executes.
         If InStr(snapshot.PlayText, "scored") > 0 Or InStr(snapshot.PlayText, "homered") > 0 Then
             ws.Rows(rowNum).Font.Bold = True
         End If
@@ -226,11 +226,9 @@ Public Sub ExportToSheet(ByVal targetSheetName As String)
             End If
             
             Dim summaryText As String
-            summaryText = summaryTeam & " Team â€” " & snapshot.Half & " " & snapshot.Inning & _
-              ":  Runs: " & summaryRuns & " | Hits: " & halfHits & " | Errors: " & halfErrors
-            ' Placeholder columns for future stats ï¿½ blank for now, easy to extend
-            ' Hits: _ | RBI: _ | Errors: _ | LOB: _
-
+            summaryText = summaryTeam & " Team — " & snapshot.Half & " " & snapshot.Inning & _
+                          ":  Runs: " & summaryRuns & " | Hits: " & halfHits & " | Errors: " & halfErrors
+            
             With ws.Range(ws.Cells(rowNum, 1), ws.Cells(rowNum, COL_COUNT))
                 .Merge
                 .Value = summaryText
@@ -241,21 +239,17 @@ Public Sub ExportToSheet(ByVal targetSheetName As String)
                 .IndentLevel = 1
             End With
             
-            ' Reset alternating color toggle for the next half-inning
-            colorToggle = False
             rowNum = rowNum + 1
         End If
     Next idx
     
     ' ---- FINAL FORMATTING ----
     ws.Columns("A:K").AutoFit
-    ws.Columns("E").ColumnWidth = 60 ' Play Text column ï¿½ don't let AutoFit shrink it too much
+    ws.Columns("E").ColumnWidth = 60
     
-    ' Freeze the header row
     ws.Activate
     ws.Range("A2").Select
     ActiveWindow.FreezePanes = True
 End Sub
-
 
 

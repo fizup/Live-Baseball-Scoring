@@ -26,5 +26,5 @@ Public PlayText As String
 Public Pitcher As String
 Public Batter As String
 Public IsHit As Boolean
-Public IsError As Boolean
-
+Public IsError As Boolean ' original error flag, checks if batter reaches on error
+Public ErrorCount As Long  ' replaces IsError, counts errors on runner decisions
