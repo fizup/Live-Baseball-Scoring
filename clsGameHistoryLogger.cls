@@ -225,9 +225,28 @@ Public Sub ExportToSheet(ByVal targetSheetName As String)
                 summaryRuns = runsHome
             End If
             
+            ' ---- LOB: runners left on base at the end of the half-inning ----
+            ' snapshot.BaseState is captured BEFORE the final play executes, so it
+            ' still shows any runner who is put out or who scores ON that final
+            ' play as "occupying" a base. Subtract those out of the raw count by
+            ' detecting the same text fragments BuildRunnerText/ScoreAllRunners
+            ' produce for each outcome.
+            Dim occupiedBeforePlay As Long
+            occupiedBeforePlay = 3 - (Len(snapshot.BaseState) - Len(Replace(snapshot.BaseState, "_", "")))
+            
+            Dim runnersResolvedThisPlay As Long
+            runnersResolvedThisPlay = CountOccurrences(snapshot.PlayText, "out on play") _
+                                    + CountOccurrences(snapshot.PlayText, "caught stealing") _
+                                    + CountOccurrences(snapshot.PlayText, "scored")
+            
+            Dim leftOnBase As Long
+            leftOnBase = occupiedBeforePlay - runnersResolvedThisPlay
+            If leftOnBase < 0 Then leftOnBase = 0
+            
             Dim summaryText As String
             summaryText = summaryTeam & " Team — " & snapshot.Half & " " & snapshot.Inning & _
-                          ":  Runs: " & summaryRuns & " | Hits: " & halfHits & " | Errors: " & halfErrors
+                          ":  Runs: " & summaryRuns & " | Hits: " & halfHits & " | Errors: " & halfErrors _
+                          & " | LOB: " & leftOnBase
             
             With ws.Range(ws.Cells(rowNum, 1), ws.Cells(rowNum, COL_COUNT))
                 .Merge
@@ -252,4 +271,18 @@ Public Sub ExportToSheet(ByVal targetSheetName As String)
     ActiveWindow.FreezePanes = True
 End Sub
 
+' Counts non-overlapping occurrences of a substring within text.
+' Used by ExportToSheet's LOB calculation to detect how many runners
+' were resolved (out or scored) on the final play of a half-inning.
+Private Function CountOccurrences(ByVal text As String, ByVal substring As String) As Long
+    Dim cnt As Long: cnt = 0
+    Dim pos As Long: pos = 1
+    Do
+        pos = InStr(pos, text, substring, vbTextCompare)
+        If pos = 0 Then Exit Do
+        cnt = cnt + 1
+        pos = pos + Len(substring)
+    Loop
+    CountOccurrences = cnt
+End Function
 

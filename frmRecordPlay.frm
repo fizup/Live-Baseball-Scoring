@@ -546,8 +546,8 @@ Private Sub UpdateFormDisplay()
     Dim halfArrow As String: halfArrow = IIf(m_Game.Half = "Top", "^ Top ", "v Bot ")
     Me.lblInningHeader.Caption = halfArrow & "of Inning " & m_Game.Inning & "  (" & m_Game.Outs & " Outs)"
 
-    Me.txtCurrentBatter.Text = IIf(Not m_Game.CurrentBatter Is Nothing, m_Game.CurrentBatter.Spot & " |  " & m_Game.CurrentBatter.Jersey & " - " & m_Game.CurrentBatter.Name, "[No Lineup Loaded]")
-    Me.txtCurrentPitcher.Text = IIf(Not m_Game.CurrentPitcher Is Nothing, m_Game.CurrentPitcher.Jersey & " - " & m_Game.CurrentPitcher.Name, "[No Lineup Loaded]")
+    Me.txtCurrentBatter.text = IIf(Not m_Game.CurrentBatter Is Nothing, m_Game.CurrentBatter.Spot & " |  " & m_Game.CurrentBatter.Jersey & " - " & m_Game.CurrentBatter.Name, "[No Lineup Loaded]")
+    Me.txtCurrentPitcher.text = IIf(Not m_Game.CurrentPitcher Is Nothing, m_Game.CurrentPitcher.Jersey & " - " & m_Game.CurrentPitcher.Name, "[No Lineup Loaded]")
     
     Me.lblPitchCounter.Caption = "P: " & m_Game.CurrentPitcher.Pitchcounter & " IP: " & m_Game.CurrentPitcher.InningsPitched
     
