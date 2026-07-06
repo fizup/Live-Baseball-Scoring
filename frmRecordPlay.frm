@@ -1,7 +1,7 @@
 VERSION 5.00
 Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} frmRecordPlay 
    Caption         =   "Live Game Input"
-   ClientHeight    =   7485
+   ClientHeight    =   7905
    ClientLeft      =   45
    ClientTop       =   390
    ClientWidth     =   8040
@@ -34,12 +34,12 @@ Public Sub InitializeForm(ByVal TargetGame As clsBaseballGame, ByVal TargetLogge
 
     Set m_AllEvents = GetEvents()
 
-    With Me.cboPlayCategory
+    With Me.lstPlayCategory
         .Clear
         .AddItem "GetOnBase"
         .AddItem "GetOut"
         .AddItem "AdvanceBase"
-        .ListIndex = 0
+        .ListIndex = 2
     End With
 
     SetInterfaceStage InPlayMode:=False
@@ -56,14 +56,23 @@ Private Sub SetInterfaceStage(ByVal InPlayMode As Boolean)
     Me.cmdFoul.Enabled = Not InPlayMode
     Me.cmdInPlay.Enabled = Not InPlayMode
 
-    Me.cboPlayCategory.Enabled = InPlayMode
+    Me.lstPlayCategory.Enabled = InPlayMode
     Me.lstDynamicPlays.Enabled = InPlayMode
     Me.cmdSubmit.Enabled = InPlayMode
 
+    ' ListBox doesn't grey out its own appearance on Enabled = False the way
+    ' TextBox/ComboBox do, and it keeps the blue selection highlight visible
+    ' even while disabled — both are faked manually here.
     If InPlayMode Then
+        Me.lstPlayCategory.BackColor = RGB(255, 255, 255) ' active: white background
+        Me.lstPlayCategory.ForeColor = RGB(0, 0, 0)       ' active: black text
+        If Me.lstPlayCategory.ListIndex = -1 Then Me.lstPlayCategory.ListIndex = 0
         PopulateDynamicPlaysList
         Me.lstDynamicPlays.SetFocus
     Else
+        Me.lstPlayCategory.BackColor = RGB(212, 208, 200) ' disabled: grey background
+        Me.lstPlayCategory.ForeColor = RGB(128, 128, 128) ' disabled: grey text
+        Me.lstPlayCategory.ListIndex = -1                 ' clear the stale blue highlight
         Me.lstDynamicPlays.Clear
     End If
 End Sub
@@ -72,12 +81,12 @@ Private Sub PopulateDynamicPlaysList()
     Me.lstDynamicPlays.Clear
     Dim e As clsEvent
     For Each e In m_AllEvents
-        If e.Section = Me.cboPlayCategory.Value Then Me.lstDynamicPlays.AddItem e.Name
+        If e.Section = Me.lstPlayCategory.Value Then Me.lstDynamicPlays.AddItem e.Name
     Next e
 End Sub
 
-Private Sub cboPlayCategory_Change()
-    If Me.cboPlayCategory.Enabled Then PopulateDynamicPlaysList
+Private Sub lstPlayCategory_Click()
+    If Me.lstPlayCategory.Enabled Then PopulateDynamicPlaysList
 End Sub
 
 ' ----------------------------------------------------------------
