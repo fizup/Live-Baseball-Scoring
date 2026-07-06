@@ -14,6 +14,7 @@ Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
 
+
 Option Explicit
 
 ' ----------------------------------------------------------------
@@ -39,7 +40,7 @@ Public Sub InitializeForm(ByVal TargetGame As clsBaseballGame, ByVal TargetLogge
         .AddItem "GetOnBase"
         .AddItem "GetOut"
         .AddItem "AdvanceBase"
-        .ListIndex = 2
+        .ListIndex = 0
     End With
 
     SetInterfaceStage InPlayMode:=False
@@ -472,6 +473,26 @@ Private Sub cmdSubstitution_Click()
     If Not confirmed Then
         m_UndoStack.Remove m_UndoStack.Count
         Exit Sub
+    End If
+    
+    ' Check every occupied base — if the batch of changes just applied
+    ' includes that runner leaving her spot to someone else, rename her
+    ' on base accordingly (e.g. a pinch runner substitution).
+    Dim renamed As String
+    
+    If m_Game.Runner1B <> "" Then
+        renamed = subForm.ResolveRunnerRename(m_Game.Runner1B)
+        If renamed <> "" Then m_Game.Runner1B = renamed
+    End If
+    
+    If m_Game.Runner2B <> "" Then
+        renamed = subForm.ResolveRunnerRename(m_Game.Runner2B)
+        If renamed <> "" Then m_Game.Runner2B = renamed
+    End If
+    
+    If m_Game.Runner3B <> "" Then
+        renamed = subForm.ResolveRunnerRename(m_Game.Runner3B)
+        If renamed <> "" Then m_Game.Runner3B = renamed
     End If
     
     Dim snapshot As clsPlayByPlayEvent

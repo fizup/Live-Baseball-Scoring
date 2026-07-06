@@ -13,6 +13,7 @@ Attribute VB_GlobalNameSpace = False
 Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
+
 Option Explicit
 
 Private m_GameRef        As clsBaseballGame
@@ -261,4 +262,40 @@ Private Function IsBeingCreditedElsewhere(ByVal playerName As String) As Boolean
         End If
     Next chg
     IsBeingCreditedElsewhere = False
+End Function
+
+' Given a runner's current name (from m_Game.Runner1B/2B/3B), checks
+' whether this batch of staged changes has her leaving the game AND
+' someone else taking over her vacated batting spot — e.g. a pinch
+' runner. Returns the new name to use, or "" if no rename applies.
+Public Function ResolveRunnerRename(ByVal currentName As String) As String
+    If currentName = "" Then
+        ResolveRunnerRename = ""
+        Exit Function
+    End If
+    
+    ' Step 1: is this runner leaving her spot in this batch?
+    Dim leavingSpot As Long: leavingSpot = -1
+    Dim chg As clsLineupAssignment
+    For Each chg In m_PendingChanges
+        If chg.playerName = currentName And chg.OldSpot > 0 And chg.NewSpot <> chg.OldSpot Then
+            leavingSpot = chg.OldSpot
+            Exit For
+        End If
+    Next chg
+    
+    If leavingSpot = -1 Then
+        ResolveRunnerRename = "" ' she isn't part of this batch — no change
+        Exit Function
+    End If
+    
+    ' Step 2: who is taking over that exact spot?
+    For Each chg In m_PendingChanges
+        If chg.NewSpot = leavingSpot And chg.playerName <> currentName Then
+            ResolveRunnerRename = chg.playerName
+            Exit Function
+        End If
+    Next chg
+    
+    ResolveRunnerRename = "" ' nobody took her spot — leave the runner name as is
 End Function
