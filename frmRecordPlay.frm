@@ -343,16 +343,16 @@ Private Function BuildRunnerText(ByVal decisions As Collection, _
             Case DEST_HOLDS
                 ' Not noteworthy — no text fragment
             Case DEST_SECOND
-                summaryText = summaryText & "; " & outcome.PlayerName & " " & _
+                summaryText = summaryText & "; " & outcome.playerName & " " & _
                               IIf(outcome.AdvancedOnError, "advanced to second on error", actionVerb & " second")
             Case DEST_THIRD
-                summaryText = summaryText & "; " & outcome.PlayerName & " " & _
+                summaryText = summaryText & "; " & outcome.playerName & " " & _
                               IIf(outcome.AdvancedOnError, "advanced to third on error", actionVerb & " third")
             Case DEST_SCORES
-                summaryText = summaryText & "; " & outcome.PlayerName & _
+                summaryText = summaryText & "; " & outcome.playerName & _
                               IIf(outcome.AdvancedOnError, " scored on error", " scored")
             Case DEST_OUT
-                summaryText = summaryText & "; " & outcome.PlayerName & _
+                summaryText = summaryText & "; " & outcome.playerName & _
                               IIf(isCaughtStealing, " caught stealing", " out on play")
         End Select
     Next outcome
@@ -454,47 +454,23 @@ End Sub
 ' ----------------------------------------------------------------
 Private Sub cmdSubstitution_Click()
     PushUndo LogEntryWillBeWritten:=True
-    ' Attach a lineup snapshot to the memento just pushed, since
-    ' RestoreMemento alone does not touch lineup state.
     Set m_UndoStack(m_UndoStack.Count).LineupSnapshot = m_Game.CaptureLineupMemento()
     
-    Dim subForm As frmSubstitution
-    Set subForm = New frmSubstitution
+    Dim subForm As New frmSubstitution
     Dim confirmed As Boolean
-    confirmed = subForm.ExecuteSubstitution(m_Game)
+    confirmed = subForm.ExecuteLineupChanges(m_Game)
     
     If Not confirmed Then
-        ' Nothing happened ï¿½ pop the undo entry we just pushed
-        ' so a cancelled substitution doesn't leave a dead stack entry.
         m_UndoStack.Remove m_UndoStack.Count
         Exit Sub
     End If
     
-    ' Update base-runner strings if the outgoing player was on base.
-    ' Substitutions normally only apply between batters / half-innings,
-    ' but guard against it regardless (e.g. injury mid at-bat).
-    Dim outName As String: outName = subForm.OutgoingPlayerName
-    Dim inName As String: inName = subForm.IncomingPlayerName
-    
-    If m_Game.Runner1B = outName Then m_Game.Runner1B = inName
-    If m_Game.Runner2B = outName Then m_Game.Runner2B = inName
-    If m_Game.Runner3B = outName Then m_Game.Runner3B = inName
-    
-    ' Log the substitution as a play-by-play event
     Dim snapshot As clsPlayByPlayEvent
     Set snapshot = m_Logger.TakeSnapshot(m_Game)
     
-    Dim inPos As String: inPos = subForm.IncomingPosition
-    Dim midText As String
-    Select Case inPos
-        Case "PH": midText = " pinch hit for "
-        Case "PR": midText = " pinch ran for "
-        Case Else: midText = " to " & inPos & " for "
-    End Select
-    
     Dim subText As String
-    subText = inName & midText & outName & _
-              " (Spot " & subForm.SelectedSpot & ", " & subForm.SelectedTeam & ")"
+    'subText = subForm.SelectedTeam & " lineup change: " & subForm.ChangesDescription
+    subText = subForm.ChangesDescription
     
     m_Logger.RecordEvent snapshot, "SUB", subText
     

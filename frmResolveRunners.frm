@@ -177,7 +177,7 @@ Private Sub AddOutcomeIfVisible(ByVal target As Collection, ByRef cbo As Control
     Dim decision As clsRunnerOutcome
     Set decision = New clsRunnerOutcome
     decision.BaseSource = originalBase
-    decision.PlayerName = runnerName
+    decision.playerName = runnerName
 
     Select Case cbo.Value
         Case "Stays/Holds":    decision.NewDestination = DEST_HOLDS
@@ -220,8 +220,8 @@ Private Sub ApplyOutcomeToField(ByVal outcome As clsRunnerOutcome)
     End If
 
     Select Case outcome.NewDestination
-        Case DEST_SECOND: m_GameRef.Runner2B = outcome.PlayerName
-        Case DEST_THIRD:  m_GameRef.Runner3B = outcome.PlayerName
+        Case DEST_SECOND: m_GameRef.Runner2B = outcome.playerName
+        Case DEST_THIRD:  m_GameRef.Runner3B = outcome.playerName
         Case DEST_SCORES: m_GameRef.ScoreRuns 1
         ' DEST_HOLDS: no-op, base already correctly occupied
         ' DEST_OUT:   no-op beyond the vacate above

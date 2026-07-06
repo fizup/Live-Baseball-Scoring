@@ -1,10 +1,10 @@
 VERSION 5.00
 Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} frmSubstitution 
    Caption         =   "Substitute Player"
-   ClientHeight    =   3270
+   ClientHeight    =   4860
    ClientLeft      =   45
    ClientTop       =   390
-   ClientWidth     =   6360
+   ClientWidth     =   7725
    OleObjectBlob   =   "frmSubstitution.frx":0000
    StartUpPosition =   1  'Fenstermitte
 End
@@ -13,23 +13,16 @@ Attribute VB_GlobalNameSpace = False
 Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
-
 Option Explicit
 
-Private m_GameRef As clsBaseballGame
-Private m_Confirmed As Boolean
-Private m_OutgoingName As String
-Private m_IncomingName As String
-Private m_SelectedTeam As String
-Private m_SelectedSpot As Long
-Private m_IncomingPosition As String
+Private m_GameRef        As clsBaseballGame
+Private m_Confirmed      As Boolean
+Private m_SelectedTeam   As String
+Private m_PendingChanges As Collection ' clsLineupAssignment objects staged so far
 
-''
-' Entry point called by frmRecordPlay.
-' Returns True if a substitution was confirmed, False if cancelled.
-''
-Public Function ExecuteSubstitution(ByRef GameEngine As clsBaseballGame) As Boolean
+Public Function ExecuteLineupChanges(ByRef GameEngine As clsBaseballGame) As Boolean
     Set m_GameRef = GameEngine
+    Set m_PendingChanges = New Collection
     m_Confirmed = False
     
     Me.cboTeam.Clear
@@ -37,62 +30,66 @@ Public Function ExecuteSubstitution(ByRef GameEngine As clsBaseballGame) As Bool
     Me.cboTeam.AddItem "Home"
     Me.cboTeam.ListIndex = 0
     
-    PopulateOutgoingPlayerList
-    PopulateIncomingPlayerList
+    PopulatePlayerList
     PopulatePositionList
+    PopulateSpotList
+    Me.lstPendingChanges.Clear
     
     Me.Show vbModal
     
-    ExecuteSubstitution = m_Confirmed
+    ExecuteLineupChanges = m_Confirmed
 End Function
 
 Private Sub cboTeam_Change()
-    PopulateOutgoingPlayerList
-    PopulateIncomingPlayerList
+    PopulatePlayerList
 End Sub
 
-' Lists active players (on field) for the selected team —
-' these are the candidates to be substituted OUT.
-Private Sub PopulateOutgoingPlayerList()
-    Me.cboOutgoingPlayer.Clear
-    
+' Lists every player on the selected team — bench and active alike —
+' so any Spot/Position combination can be assigned to anyone.
+Private Sub PopulatePlayerList()
+    Me.cboPlayer.Clear
     Dim lineup As Collection
     Set lineup = GetSelectedLineup()
     
     Dim p As clsPlayer
     For Each p In lineup
-        If p.Spot > 0 And p.Position <> "" Then
-            Me.cboOutgoingPlayer.AddItem p.Spot & " | " & p.Position & " | " & p.Name
-        End If
+        Dim posDisplay As String
+        posDisplay = IIf(p.Position = "", "-", p.Position)
+        Me.cboPlayer.AddItem p.Spot & " | " & posDisplay & " | " & p.Jersey & " | " & p.Name
     Next p
     
-    If Me.cboOutgoingPlayer.ListCount > 0 Then Me.cboOutgoingPlayer.ListIndex = 0
+    If Me.cboPlayer.ListCount > 0 Then Me.cboPlayer.ListIndex = 0
 End Sub
 
-' Lists bench players (Spot = 0) for the selected team —
-' these are the candidates to be substituted IN.
-Private Sub PopulateIncomingPlayerList()
-    Me.cboIncomingPlayer.Clear
+' Pre-fills the Spot/Position controls with the selected player's
+' CURRENT values — the user only changes what's actually different.
+Private Sub cboPlayer_Change()
+    If Me.cboPlayer.ListIndex = -1 Then Exit Sub
     
-    Dim lineup As Collection
-    Set lineup = GetSelectedLineup()
+    Dim parts() As String
+    parts = Split(Me.cboPlayer.Value, " | ")
     
-    Dim p As clsPlayer
-    For Each p In lineup
-        If p.Spot = 0 Then
-            Me.cboIncomingPlayer.AddItem p.Jersey & " | " & p.Name
-        End If
-    Next p
-    
-    If Me.cboIncomingPlayer.ListCount > 0 Then Me.cboIncomingPlayer.ListIndex = 0
+    Me.cboNewSpot.Value = parts(0)
+    Me.cboNewPosition.Value = IIf(parts(1) = "-", "", parts(1))
 End Sub
 
 Private Sub PopulatePositionList()
-    With Me.cboIncomingPosition
+    With Me.cboNewPosition
         .Clear
+        .AddItem "" ' bench / no position
         .AddItem "P": .AddItem "C": .AddItem "1B": .AddItem "2B": .AddItem "3B"
         .AddItem "SS": .AddItem "LF": .AddItem "CF": .AddItem "RF"
         .AddItem "DH": .AddItem "DP": .AddItem "PH": .AddItem "PR"
+    End With
+End Sub
+
+Private Sub PopulateSpotList()
+    With Me.cboNewSpot
+        .Clear
+        Dim i As Long
+        For i = 0 To 10
+            .AddItem i
+        Next i
     End With
 End Sub
 
@@ -100,49 +97,92 @@ Private Function GetSelectedLineup() As Collection
     Set GetSelectedLineup = IIf(Me.cboTeam.Value = "Away", m_GameRef.LineUpAway, m_GameRef.LineUpHome)
 End Function
 
+' Stages the current Player/Spot/Position selection as one pending
+' change and resets the inputs for the next one. Nothing is applied
+' to the game engine yet — that only happens on Confirm.
+Private Sub cmdContinue_Click()
+    If Me.cboPlayer.ListIndex = -1 Then
+        MsgBox "Please select a player.", vbExclamation
+        Exit Sub
+    End If
+    
+    Dim parts() As String
+    parts = Split(Me.cboPlayer.Value, " | ")
+    Dim playerName As String: playerName = parts(3)
+    
+    Dim lineup As Collection
+    Set lineup = GetSelectedLineup()
+    
+    Dim currentPlayer As clsPlayer
+    Dim p As clsPlayer
+    For Each p In lineup
+        If p.Name = playerName Then Set currentPlayer = p
+    Next p
+    
+    Dim chg As clsLineupAssignment
+    Set chg = New clsLineupAssignment
+    chg.playerName = playerName
+    chg.OldSpot = currentPlayer.Spot
+    chg.OldPosition = currentPlayer.Position
+    chg.NewSpot = CLng(Me.cboNewSpot.Value)
+    chg.NewPosition = Me.cboNewPosition.Value
+    
+    ' If this player already has a staged change, replace it rather
+    ' than staging two conflicting entries for the same person.
+    Dim i As Long
+    For i = m_PendingChanges.Count To 1 Step -1
+        If m_PendingChanges(i).playerName = playerName Then
+            m_PendingChanges.Remove i
+        End If
+    Next i
+    
+    m_PendingChanges.Add chg
+    RefreshPendingList
+End Sub
+
+Private Sub RefreshPendingList()
+    Me.lstPendingChanges.Clear
+    Dim chg As clsLineupAssignment
+    For Each chg In m_PendingChanges
+        Me.lstPendingChanges.AddItem BuildAssignmentDescription(chg)
+    Next chg
+End Sub
+
+Private Function BuildAssignmentDescription(ByVal chg As clsLineupAssignment) As String
+    Dim oldPosDisplay As String: oldPosDisplay = IIf(chg.OldPosition = "", "Bench", chg.OldPosition)
+    Dim newPosDisplay As String: newPosDisplay = IIf(chg.NewPosition = "", "Bench", chg.NewPosition)
+    
+    BuildAssignmentDescription = chg.playerName & ":  Spot " & chg.OldSpot & " -> " & chg.NewSpot & _
+                                  ",  " & oldPosDisplay & " -> " & newPosDisplay
+End Function
+
+' Removes the highlighted staged change, in case of a mistake —
+' doesn't require cancelling the whole substitution.
+Private Sub cmdRemoveSelected_Click()
+    If Me.lstPendingChanges.ListIndex = -1 Then Exit Sub
+    m_PendingChanges.Remove Me.lstPendingChanges.ListIndex + 1
+    RefreshPendingList
+End Sub
+
 Private Sub cmdConfirm_Click()
-    If Me.cboOutgoingPlayer.ListIndex = -1 Then
-        MsgBox "Please select a player to substitute out.", vbExclamation
+    If m_PendingChanges.Count = 0 Then
+        MsgBox "No changes staged. Add at least one, or Cancel.", vbExclamation
         Exit Sub
     End If
-    
-    If Me.cboIncomingPlayer.ListIndex = -1 Then
-        MsgBox "No bench players available for this team.", vbExclamation
-        Exit Sub
-    End If
-    
-    If Me.cboIncomingPosition.ListIndex = -1 Then
-        MsgBox "Please select the incoming player's position.", vbExclamation
-        Exit Sub
-    End If
-    
-    ' Parse spot + names back out of the display strings
-    Dim outgoingParts() As String: outgoingParts = Split(Me.cboOutgoingPlayer.Value, " | ")
-    Dim incomingParts() As String: incomingParts = Split(Me.cboIncomingPlayer.Value, " | ")
     
     m_SelectedTeam = Me.cboTeam.Value
-    m_SelectedSpot = CLng(outgoingParts(0))
-    m_OutgoingName = outgoingParts(2)
-    m_IncomingName = incomingParts(1)
-    m_IncomingPosition = Me.cboIncomingPosition.Value
-    
-    m_GameRef.SubstitutePlayer m_SelectedTeam, m_SelectedSpot, m_IncomingName, Me.cboIncomingPosition.Value
+    m_GameRef.ApplyLineupChanges m_SelectedTeam, m_PendingChanges
     
     m_Confirmed = True
     Me.Hide
 End Sub
 
-' ----------------------------------------------------------------
-' CANCEL FORM
-' ----------------------------------------------------------------
 Private Sub cmdCancel_Click()
     m_Confirmed = False
     Me.Hide
 End Sub
 
 Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)
-    ' Treat X button exactly like clicking Cancel — hide rather than destroy,
-    ' so the caller receives a clean Nothing collection and can abort safely.
     If CloseMode = vbFormControlMenu Then
         Cancel = True
         m_Confirmed = False
@@ -150,26 +190,75 @@ Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)
     End If
 End Sub
 
-''
-' Read-only accessors so frmRecordPlay can build the log text
-' and capture base-runner renames after ExecuteSubstitution returns True.
-''
 Public Property Get SelectedTeam() As String
     SelectedTeam = m_SelectedTeam
 End Property
 
-Public Property Get SelectedSpot() As Long
-    SelectedSpot = m_SelectedSpot
+' Builds the full log text listing every staged change with proper substitution phrasing.
+' Used only for the exported log text — the pending-changes listbox
+' still shows the literal Spot/Position values via BuildAssignmentDescription.
+Public Property Get ChangesDescription() As String
+    Dim result As String: result = ""
+    Dim chg As clsLineupAssignment
+    For Each chg In m_PendingChanges
+        If Not IsBeingCreditedElsewhere(chg.playerName) Then
+            result = result & "; " & BuildLogFragment(chg)
+        End If
+    Next chg
+    If Left(result, 2) = "; " Then result = Mid(result, 3)
+    ChangesDescription = result
 End Property
 
-Public Property Get OutgoingPlayerName() As String
-    OutgoingPlayerName = m_OutgoingName
-End Property
+Private Function BuildLogFragment(ByVal chg As clsLineupAssignment) As String
+    Dim comingFromBench As Boolean
+    comingFromBench = (chg.OldSpot = 0)
+    
+    If comingFromBench Then
+        Dim replacedName As String
+        replacedName = FindVacatingPlayer(chg.NewSpot, chg.playerName)
+        
+        If replacedName <> "" Then
+            Select Case chg.NewPosition
+                Case "PH": BuildLogFragment = chg.playerName & " pinch hit for " & replacedName
+                Case "PR": BuildLogFragment = chg.playerName & " pinch ran for " & replacedName
+                Case Else: BuildLogFragment = chg.playerName & " to " & chg.NewPosition & " for " & replacedName
+            End Select
+        Else
+            BuildLogFragment = chg.playerName & " to " & chg.NewPosition
+        End If
+    Else
+        BuildLogFragment = chg.playerName & " to " & IIf(chg.NewPosition = "", "Bench", chg.NewPosition)
+    End If
+End Function
 
-Public Property Get IncomingPlayerName() As String
-    IncomingPlayerName = m_IncomingName
-End Property
+' Finds who vacated targetSpot in this batch — matched purely by Spot,
+' never by Position, since a baserunner being pinch-run for has no
+' defensive Position at all while still occupying (vacating) a batting Spot.
+Private Function FindVacatingPlayer(ByVal targetSpot As Long, ByVal excludeName As String) As String
+    Dim chg As clsLineupAssignment
+    For Each chg In m_PendingChanges
+        If chg.playerName <> excludeName Then
+            If chg.OldSpot = targetSpot And chg.NewSpot <> chg.OldSpot Then
+                FindVacatingPlayer = chg.playerName
+                Exit Function
+            End If
+        End If
+    Next chg
+    FindVacatingPlayer = ""
+End Function
 
-Public Property Get IncomingPosition() As String
-    IncomingPosition = m_IncomingPosition
-End Property
+' True if some OTHER change in this batch already names this player
+' as the one being replaced (i.e. FindVacatingPlayer resolves to her).
+' If so, her own fragment would be redundant and is skipped.
+Private Function IsBeingCreditedElsewhere(ByVal playerName As String) As Boolean
+    Dim chg As clsLineupAssignment
+    For Each chg In m_PendingChanges
+        If chg.playerName <> playerName And chg.OldSpot = 0 Then
+            If FindVacatingPlayer(chg.NewSpot, chg.playerName) = playerName Then
+                IsBeingCreditedElsewhere = True
+                Exit Function
+            End If
+        End If
+    Next chg
+    IsBeingCreditedElsewhere = False
+End Function

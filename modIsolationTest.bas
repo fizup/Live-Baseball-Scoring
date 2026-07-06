@@ -30,7 +30,7 @@ Sub RunIsolatedRunnerTest()
     Dim d1 As New clsRunnerOutcome
     
     d1.BaseSource = "1B"
-    d1.PlayerName = mockGame.Runner1B ' Calls Property Get
+    d1.playerName = mockGame.Runner1B ' Calls Property Get
     d1.NewDestination = "2"           ' Operator wants him to advance to 2B
     mockDecisions.Add d1
     

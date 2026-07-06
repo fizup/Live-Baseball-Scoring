@@ -277,38 +277,35 @@ Public Sub RestoreLineupMemento(ByVal m As clsLineupMemento)
     Set m_LineUpHome = m.LineUpHome
 End Sub
 
-' Substitutes a bench player into an active batting spot.
-' Both players remain in the same lineup Collection — only their
-' Spot/Position/IsPitcher fields change. team: "Away" or "Home"
-Public Sub SubstitutePlayer(ByVal team As String, ByVal Spot As Long, _
-                            ByVal IncomingPlayerName As String, ByVal newPosition As String)
+' Applies any number of staged Spot/Position changes to a team's lineup
+' in one atomic operation. No baseball-rule assumptions are made here —
+' the scorer decides what a "substitution" or "position swap" means by
+' choosing the Spot/Position values in frmSubstitution.
+Public Sub ApplyLineupChanges(ByVal team As String, ByVal changes As Collection)
     Dim lineup As Collection
     Set lineup = IIf(team = "Away", m_LineUpAway, m_LineUpHome)
     
-    Dim outgoing As clsPlayer
-    Dim incoming As clsPlayer
-    
-    Dim p As clsPlayer
-    For Each p In lineup
-        If p.Spot = Spot And p.Position <> "" Then Set outgoing = p ' identify outgoing player by spot
-        If p.Name = IncomingPlayerName And p.Spot = 0 Then Set incoming = p ' identify incoming player by name
-    Next p
-    
-    If outgoing Is Nothing Or incoming Is Nothing Then
-        Err.Raise vbObjectError + 1, "SubstitutePlayer", "Outgoing or incoming player not found in lineup."
-    End If
-    
-    ' Incoming player takes the vacated spot and position
-    incoming.Spot = Spot
-    incoming.Position = newPosition
-    incoming.IsPitcher = (UCase(newPosition) = "P")
-    
-    ' Outgoing player returns to bench state
-    outgoing.Spot = 0
-    outgoing.Position = ""
-    outgoing.IsPitcher = False
+    Dim chg As clsLineupAssignment
+    For Each chg In changes
+        Dim found As clsPlayer
+        Set found = Nothing
+        Dim p As clsPlayer
+        For Each p In lineup
+            If p.Name = chg.playerName Then
+                Set found = p
+                Exit For
+            End If
+        Next p
+        
+        If found Is Nothing Then
+            Err.Raise vbObjectError + 1, "ApplyLineupChanges", "Player not found: " & chg.playerName
+        End If
+        
+        found.Spot = chg.NewSpot
+        found.Position = chg.NewPosition
+        found.IsPitcher = (UCase(chg.NewPosition) = "P")
+    Next chg
 End Sub
-
 
 ' ----------------------------------------------------------------
 ' Class Initialisation
